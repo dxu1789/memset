@@ -1,0 +1,14 @@
+{
+  "name": "set-memory-multiplayer",
+  "version": "1.0.0",
+  "description": "Multiplayer SET Memory game for EC2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "pm2 start server.js --name 'set-game' --watch"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
