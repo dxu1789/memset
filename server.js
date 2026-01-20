@@ -19,7 +19,8 @@ let state = {
 };
 
 function createDeck() {
-    const colors = ['#ff4757', '#2ed573', '#5352ed'];
+    // Red, Green, Proper Purple
+    const colors = ['#ff4757', '#2ed573', '#8e44ad']; 
     const shapes = ['oval', 'diamond', 'squiggle'];
     const numbers = [1, 2, 3];
     const fillings = ['solid', 'striped', 'open'];
@@ -62,7 +63,6 @@ function findSet(cards, matchedIndices) {
 
 function initGame() {
     const deck = createDeck();
-    // SET TO 16 CARDS
     state = {
         deck: deck.slice(16),
         currentCards: deck.slice(0, 16),
@@ -77,10 +77,12 @@ initGame();
 
 io.on('connection', (socket) => {
     socket.emit('init', state);
+
     socket.on('cardClicked', (index) => {
         if (state.flippedIndices.includes(index) || state.matchedIndices.includes(index) || state.flippedIndices.length >= 3) return;
         state.flippedIndices.push(index);
         io.emit('syncFlip', state.flippedIndices);
+        
         if (state.flippedIndices.length === 3) {
             const selectedCards = state.flippedIndices.map(i => state.currentCards[i]);
             if (isSet(selectedCards)) {
@@ -95,10 +97,12 @@ io.on('connection', (socket) => {
             }
         }
     });
+
     socket.on('requestHint', () => {
         const setIndices = findSet(state.currentCards, state.matchedIndices);
         socket.emit('hintResult', setIndices);
     });
+
     socket.on('resetGame', () => {
         initGame();
         io.emit('init', state);
