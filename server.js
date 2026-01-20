@@ -1,35 +1,26 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
 let state = {
     deck: [],
-    currentCards: [],
-    flippedIndices: [],
-    matchedIndices: [],
-    currentPlayer: 'p1',
-    scores: { p1: 0, p2: 0 }
+    board: [],
+    selected: [],
+    player1Sets: [],
+    player2Sets: [],
+    activePlayer: 'p1'
 };
 
 function createDeck() {
-    // Red, Green, Proper Purple
-    const colors = ['#ff4757', '#2ed573', '#8e44ad']; 
-    const shapes = ['oval', 'diamond', 'squiggle'];
-    const numbers = [1, 2, 3];
-    const fillings = ['solid', 'striped', 'open'];
     const deck = [];
-    for (let color of colors) {
-        for (let shape of shapes) {
-            for (let number of numbers) {
-                for (let filling of fillings) {
-                    deck.push({ color, shape, number, filling });
+    for (let s = 0; s < 3; s++) {
+        for (let c = 0; c < 3; c++) {
+            for (let n = 0; n < 3; n++) {
+                for (let f = 0; f < 3; f++) {
+                    deck.push({ s, c, n: n + 1, f, id: Math.random().toString(36).substr(2, 9) });
                 }
             }
         }
@@ -39,74 +30,77 @@ function createDeck() {
 
 function isSet(cards) {
     if (cards.length !== 3) return false;
-    const features = ['color', 'shape', 'number', 'filling'];
+    const features = ['s', 'c', 'n', 'f'];
     return features.every(feature => {
-        const values = cards.map(c => c[feature]);
-        return (values[0] === values[1] && values[1] === values[2]) || 
-               (values[0] !== values[1] && values[0] !== values[2] && values[1] !== values[2]);
+        const values = cards.map(card => card[feature]);
+        const uniqueValues = new Set(values).size;
+        return uniqueValues === 1 || uniqueValues === 3;
     });
 }
 
-function findSet(cards, matchedIndices) {
-    for (let i = 0; i < cards.length; i++) {
-        if (matchedIndices.includes(i)) continue;
-        for (let j = i + 1; j < cards.length; j++) {
-            if (matchedIndices.includes(j)) continue;
-            for (let k = j + 1; k < cards.length; k++) {
-                if (matchedIndices.includes(k)) continue;
-                if (isSet([cards[i], cards[j], cards[k]])) return [i, j, k];
+function findSet(board) {
+    for (let i = 0; i < board.length; i++) {
+        for (let j = i + 1; j < board.length; j++) {
+            for (let k = j + 1; k < board.length; k++) {
+                if (isSet([board[i], board[j], board[k]])) {
+                    return [board[i].id, board[j].id, board[k].id];
+                }
             }
         }
     }
     return null;
 }
 
-function initGame() {
-    const deck = createDeck();
-    state = {
-        deck: deck.slice(16),
-        currentCards: deck.slice(0, 16),
-        flippedIndices: [],
-        matchedIndices: [],
-        currentPlayer: 'p1',
-        scores: { p1: 0, p2: 0 }
-    };
+function resetGame() {
+    state.deck = createDeck();
+    state.board = state.deck.splice(0, 12);
+    state.selected = [];
+    state.player1Sets = [];
+    state.player2Sets = [];
+    state.activePlayer = 'p1';
 }
 
-initGame();
-
 io.on('connection', (socket) => {
-    socket.emit('init', state);
+    const getMaskedState = () => ({
+        ...state,
+        board: state.board.map(c => state.selected.some(s => s.id === c.id) ? c : { id: c.id, hidden: true })
+    });
 
-    socket.on('cardClicked', (index) => {
-        if (state.flippedIndices.includes(index) || state.matchedIndices.includes(index) || state.flippedIndices.length >= 3) return;
-        state.flippedIndices.push(index);
-        io.emit('syncFlip', state.flippedIndices);
-        
-        if (state.flippedIndices.length === 3) {
-            const selectedCards = state.flippedIndices.map(i => state.currentCards[i]);
-            if (isSet(selectedCards)) {
-                state.scores[state.currentPlayer]++;
-                state.matchedIndices.push(...state.flippedIndices);
-                io.emit('matchFound', { matched: state.flippedIndices, scores: state.scores });
-                state.flippedIndices = [];
-            } else {
-                state.currentPlayer = state.currentPlayer === 'p1' ? 'p2' : 'p1';
-                io.emit('turnEnd', { currentPlayer: state.currentPlayer });
-                state.flippedIndices = [];
-            }
+    socket.emit('gameState', getMaskedState());
+
+    socket.on('selectCard', ({ cardId }) => {
+        const card = state.board.find(c => c.id === cardId);
+        if (!card || state.selected.find(s => s.id === cardId) || state.selected.length >= 3) return;
+
+        state.selected.push(card);
+        io.emit('gameState', getMaskedState());
+
+        if (state.selected.length === 3) {
+            setTimeout(() => {
+                if (isSet(state.selected)) {
+                    const historyKey = state.activePlayer === 'p1' ? 'player1Sets' : 'player2Sets';
+                    state[historyKey].push([...state.selected]);
+                    state.selected.forEach(sel => {
+                        const idx = state.board.findIndex(c => c.id === sel.id);
+                        if (state.deck.length > 0) state.board[idx] = state.deck.pop();
+                        else state.board.splice(idx, 1);
+                    });
+                }
+                // Flip turns after every 3 cards
+                state.activePlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
+                state.selected = [];
+                io.emit('gameState', getMaskedState());
+            }, 1200);
         }
     });
 
-    socket.on('requestHint', () => {
-        const setIndices = findSet(state.currentCards, state.matchedIndices);
-        socket.emit('hintResult', setIndices);
+    socket.on('getHint', () => {
+        const hintIds = findSet(state.board);
+        socket.emit('hint', hintIds);
     });
 
-    socket.on('resetGame', () => {
-        initGame();
-        io.emit('init', state);
-    });
+    socket.on('reset', () => { resetGame(); io.emit('gameState', getMaskedState()); });
 });
 
-server.listen(3000, () => console.log('Server running on port 3000'));
+resetGame();
+http.listen(3000, () => console.log('Server running on http://localhost:3000'));

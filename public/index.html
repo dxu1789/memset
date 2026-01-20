@@ -1,134 +1,157 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>memset | Multiplayer SET</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <title>SET Memory Game</title>
     <style>
-        :root {
-            --bg: #1a1a1a;
-            --card-front: #ffffff;
-            --card-back: #2c3e50;
-            --accent: #3498db;
-        }
-        body { background-color: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
-        #ui { text-align: center; margin-bottom: 20px; }
-        #board { display: grid; grid-template-columns: repeat(4, 120px); gap: 15px; perspective: 1000px; }
-        .card { width: 120px; height: 170px; cursor: pointer; position: relative; border-radius: 12px; }
-        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
-        .card.flipped .card-inner { transform: rotateY(180deg); }
-        .card.matched { visibility: hidden; pointer-events: none; }
+        body { font-family: sans-serif; display: flex; justify-content: center; padding: 20px; background: #121212; color: #eee; gap: 20px; }
         
-        .front, .back { 
-            position: absolute; width: 100%; height: 100%; 
-            backface-visibility: hidden; border-radius: 12px; 
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+        .history { width: 180px; background: #1e1e1e; border: 2px solid #333; padding: 10px; height: 90vh; overflow-y: auto; transition: 0.3s; border-radius: 8px; }
+        .history.active { border-color: #ff9800; background: #2a241a; box-shadow: 0 0 15px rgba(255, 152, 0, 0.2); }
+        
+        .history-group { 
+            display: flex; 
+            flex-direction: row; 
+            justify-content: center; 
+            margin-bottom: 15px; 
+            padding-bottom: 10px; 
+            border-bottom: 1px solid #333;
         }
-        .back { background-color: var(--card-back); border: 2px solid #34495e; }
-        .front { background-color: var(--card-front); transform: rotateY(180deg); padding: 5px; box-sizing: border-box; }
 
-        .hint-highlight {
-            z-index: 10;
-            box-shadow: 0 0 20px 10px #f1c40f !important;
-            border-radius: 12px;
-        }
-        .hint-highlight .front {
-            border: 4px solid #f1c40f !important;
+        #turn-display { font-size: 24px; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; text-align: center; }
+        .turn-p1 { color: #ff5252; }
+        .turn-p2 { color: #e040fb; }
+
+        #board { display: grid; grid-template-columns: repeat(4, 110px); gap: 10px; }
+        
+        .card { 
+            width: 100px; height: 150px; border: 2px solid #444; border-radius: 8px; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            cursor: pointer; background: #fff; position: relative;
         }
         
-        svg { width: 100px; height: 45px; overflow: visible; margin: 2px; }
-        #controls { margin-top: 25px; }
-        button { padding: 12px 24px; font-weight: bold; color: white; background: var(--accent); border: none; border-radius: 6px; cursor: pointer; margin: 0 10px; }
+        .card.hidden { background: #2c3e50; border-color: #1a252f; }
+        .card.selected { border-color: #ff9800 !important; box-shadow: 0 0 10px #ff9800; }
+        
+        /* Fixed Hint Glow */
+        .card.hint-active { 
+            border-color: #007bff !important; 
+            box-shadow: 0 0 20px #007bff, inset 0 0 10px #007bff !important; 
+        }
+        
+        .history .card { transform: scale(0.35); margin: 0 -28px; pointer-events: none; border-color: #444; flex-shrink: 0; }
+        
+        svg { width: 80px; height: 40px; overflow: visible; }
+        .controls { text-align: center; margin-bottom: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 5px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; }
+        button:hover { background: #444; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1 id="turn">Connecting...</h1>
-        <div id="scores">P1: 0 | P2: 0</div>
-    </div>
-    <div id="board"></div>
-    <div id="controls">
-        <button onclick="socket.emit('requestHint')">Get Hint</button>
-        <button onclick="socket.emit('resetGame')" style="background-color: #27ae60;">New Game</button>
+    <div id="p1-history" class="history"><h3>P1 Sets</h3></div>
+
+    <div id="game-container">
+        <div class="controls">
+            <div id="turn-display">Player 1's Turn</div>
+            <button onclick="socket.emit('getHint')">Hint</button>
+            <button onclick="socket.emit('reset')">New Game</button>
+        </div>
+        <div id="board"></div>
     </div>
 
+    <div id="p2-history" class="history"><h3>P2 Sets</h3></div>
+
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const board = document.getElementById('board');
+        let lastState = null;
+        let activeHintIds = [];
 
         const paths = {
-            oval: '<rect x="10" y="10" width="80" height="30" rx="15" />',
+            oval: '<rect x="10" y="7" width="80" height="36" rx="18" />',
             diamond: '<polygon points="50,5 95,25 50,45 5,25" />',
-            // Squiggle height increased by 20%
-	    squiggle: '<path d="M5,25 C5,-10 35,-10 55,12 S95,-10 95,25 S65,60 45,38 S5,60 5,25 Z" />' 
-	};
+            squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />'
+        };
+        const colors = ['#f00', '#0a0', '#808'];
 
-        function render(state) {
-            board.innerHTML = '';
-            state.currentCards.forEach((card, i) => {
-                const el = document.createElement('div');
-                el.className = 'card';
-                if (state.flippedIndices.includes(i)) el.classList.add('flipped');
-                if (state.matchedIndices.includes(i)) el.classList.add('matched');
-                el.dataset.index = i;
-                
-                const patternId = `stripes-${i}`;
-                const fillVal = card.filling === 'solid' ? card.color : (card.filling === 'striped' ? `url(#${patternId})` : 'none');
+        function drawCard(card, isSelected) {
+            const el = document.createElement('div');
+            const isHinted = activeHintIds.includes(card.id);
+            
+            if (card.hidden) {
+                el.className = 'card hidden' + (isHinted ? ' hint-active' : '');
+                el.onclick = () => {
+                    activeHintIds = []; 
+                    socket.emit('selectCard', { cardId: card.id });
+                };
+                return el;
+            }
 
-                let symbolsHtml = '';
-                for(let n=0; n < card.number; n++) {
-                    symbolsHtml += `
-                        <svg viewBox="0 0 100 50">
-                            <defs>
-                                <pattern id="${patternId}" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(90)">
-                                    <line x1="0" y1="0" x2="0" y2="4" stroke="${card.color}" stroke-width="2.5" />
-                                </pattern>
-                            </defs>
-                            <g fill="${fillVal}" stroke="${card.color}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
-                                ${paths[card.shape]}
-                            </g>
-                        </svg>`;
-                }
+            const path = [paths.oval, paths.diamond, paths.squiggle][card.s];
+            const color = colors[card.c];
+            const patternId = `s-${card.c}-${card.id}`;
+            let fill = card.f === 0 ? color : (card.f === 2 ? 'none' : `url(#${patternId})`);
+            
+            let shapes = '';
+            for(let i=0; i<card.n; i++) {
+                shapes += `<svg viewBox="0 0 100 50">
+                    <defs><pattern id="${patternId}" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(90)"><line x1="0" y1="0" x2="0" y2="4" stroke="${color}" stroke-width="2"/></pattern></defs>
+                    <g fill="${fill}" stroke="${color}" stroke-width="3">${path}</g>
+                </svg>`;
+            }
 
-                el.innerHTML = `<div class="card-inner"><div class="back"></div><div class="front">${symbolsHtml}</div></div>`;
-                el.onclick = () => socket.emit('cardClicked', i);
-                board.appendChild(el);
-            });
-            document.getElementById('turn').innerText = `${state.currentPlayer.toUpperCase()}'s Turn`;
-            document.getElementById('scores').innerText = `P1: ${state.scores.p1} | P2: ${state.scores.p2}`;
+            el.className = 'card' + (isSelected ? ' selected' : '') + (isHinted ? ' hint-active' : '');
+            el.innerHTML = shapes;
+            el.onclick = () => {
+                activeHintIds = [];
+                socket.emit('selectCard', { cardId: card.id });
+            };
+            return el;
         }
 
-        socket.on('init', render);
-        
-        socket.on('hintResult', (indices) => {
-            if (!indices) return alert("No sets found!");
-            indices.forEach(i => {
-                const cardEl = document.querySelector(`[data-index="${i}"]`);
-                if (cardEl) cardEl.classList.add('hint-highlight');
+        function updateUI(s) {
+            if (!s) return;
+            lastState = s;
+            const b = document.getElementById('board');
+            const t = document.getElementById('turn-display');
+            b.innerHTML = '';
+            
+            t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
+            t.className = s.activePlayer === 'p1' ? 'turn-p1' : 'turn-p2';
+            
+            document.getElementById('p1-history').classList.toggle('active', s.activePlayer === 'p1');
+            document.getElementById('p2-history').classList.toggle('active', s.activePlayer === 'p2');
+
+            s.board.forEach(c => {
+                const isSelected = s.selected.some(sel => sel.id === c.id);
+                b.appendChild(drawCard(c, isSelected));
             });
-            setTimeout(() => {
-                document.querySelectorAll('.hint-highlight').forEach(el => el.classList.remove('hint-highlight'));
-            }, 2000);
-        });
-
-        socket.on('syncFlip', (indices) => {
-            document.querySelectorAll('.card').forEach((c, i) => {
-                indices.includes(i) ? c.classList.add('flipped') : (!c.classList.contains('matched') && c.classList.remove('flipped'));
+            
+            ['p1', 'p2'].forEach(player => {
+                const h = document.getElementById(`${player}-history`);
+                h.innerHTML = `<h3>${player.toUpperCase()} Sets</h3>`;
+                s[`player${player.slice(1)}Sets`].forEach(set => {
+                    const group = document.createElement('div');
+                    group.className = 'history-group';
+                    set.forEach(c => group.appendChild(drawCard(c, false)));
+                    h.appendChild(group);
+                });
             });
+        }
+
+        socket.on('gameState', (s) => {
+            if (!lastState || JSON.stringify(s.board) !== JSON.stringify(lastState.board)) {
+                activeHintIds = [];
+            }
+            updateUI(s);
         });
 
-        socket.on('matchFound', (data) => {
-            data.matched.forEach(i => document.querySelector(`[data-index="${i}"]`)?.classList.add('matched'));
-            document.getElementById('scores').innerText = `P1: ${data.scores.p1} | P2: ${data.scores.p2}`;
-        });
-
-        socket.on('turnEnd', (data) => {
-            setTimeout(() => {
-                document.querySelectorAll('.card:not(.matched)').forEach(c => c.classList.remove('flipped'));
-                document.getElementById('turn').innerText = `${data.currentPlayer.toUpperCase()}'s Turn`;
-            }, 1000);
+        socket.on('hint', (ids) => {
+            if (ids && ids.length > 0) {
+                activeHintIds = ids;
+                updateUI(lastState); 
+            } else {
+                alert("No SETs available!");
+            }
         });
     </script>
 </body>
