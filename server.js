@@ -2,25 +2,41 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-const path = require('path');
 
 app.use(express.static('public'));
 
 let gameState = {
-    deck: [],
+    fullDeck: [],
+    currentCards: [],
     flippedIndices: [],
     scores: { p1: 0, p2: 0 },
     currentPlayer: 'p1',
     matchedIndices: []
 };
 
-// Generate and Shuffle Deck on Server Start
-const colors = ['red', 'purple', 'green'], shapes = ['oval', 'diamond', 'squiggle'],
-      fillings = ['solid', 'striped', 'open'], numbers = [1, 2, 3];
+const colors = ['#df0101', '#62019c', '#00a31b']; // Authentic Red, Purple, Green
+const shapes = ['oval', 'diamond', 'squiggle'];
+const fillings = ['solid', 'striped', 'open'];
+const numbers = [1, 2, 3];
 
-for (let c of colors) for (let s of shapes) for (let f of fillings) for (let n of numbers)
-    gameState.deck.push({ color: c, shape: s, filling: f, number: n });
-gameState.deck.sort(() => Math.random() - 0.5);
+function initGame() {
+    let deck = [];
+    for (let color of colors) 
+        for (let shape of shapes) 
+            for (let filling of fillings) 
+                for (let number of numbers) 
+                    deck.push({ color, shape, filling, number });
+    
+    deck.sort(() => Math.random() - 0.5);
+    gameState.fullDeck = deck;
+    gameState.currentCards = deck.slice(0, 16); 
+    gameState.matchedIndices = [];
+    gameState.flippedIndices = [];
+    gameState.scores = { p1: 0, p2: 0 };
+    gameState.currentPlayer = 'p1';
+}
+
+initGame();
 
 io.on('connection', (socket) => {
     socket.emit('init', gameState);
@@ -32,7 +48,7 @@ io.on('connection', (socket) => {
         io.emit('syncFlip', gameState.flippedIndices);
 
         if (gameState.flippedIndices.length === 3) {
-            const isSet = checkSetLogic(gameState.flippedIndices.map(i => gameState.deck[i]));
+            const isSet = checkSetLogic(gameState.flippedIndices.map(i => gameState.currentCards[i]));
             
             setTimeout(() => {
                 if (isSet) {
@@ -44,9 +60,26 @@ io.on('connection', (socket) => {
                     io.emit('turnEnd', { currentPlayer: gameState.currentPlayer });
                 }
                 gameState.flippedIndices = [];
-            }, 1500);
+            }, 1200);
         }
     });
+
+    socket.on('requestHint', () => {
+        const remaining = gameState.currentCards.map((_, i) => i).filter(i => !gameState.matchedIndices.includes(i));
+        for (let i = 0; i < remaining.length; i++) {
+            for (let j = i + 1; j < remaining.length; j++) {
+                for (let k = j + 1; k < remaining.length; k++) {
+                    if (checkSetLogic([gameState.currentCards[remaining[i]], gameState.currentCards[remaining[j]], gameState.currentCards[remaining[k]]])) {
+                        socket.emit('hintResult', [remaining[i], remaining[j], remaining[k]]);
+                        return;
+                    }
+                }
+            }
+        }
+        socket.emit('hintResult', null);
+    });
+
+    socket.on('resetGame', () => { initGame(); io.emit('init', gameState); });
 });
 
 function checkSetLogic(cards) {
@@ -57,4 +90,4 @@ function checkSetLogic(cards) {
     });
 }
 
-http.listen(3000, '0.0.0.0', () => console.log('Server running on port 3000'));
+http.listen(3000, '0.0.0.0');
