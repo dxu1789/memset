@@ -1,93 +1,108 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const server = http.createServer(app);
+const io = new Server(server);
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-let gameState = {
-    fullDeck: [],
+let state = {
+    deck: [],
     currentCards: [],
     flippedIndices: [],
-    scores: { p1: 0, p2: 0 },
+    matchedIndices: [],
     currentPlayer: 'p1',
-    matchedIndices: []
+    scores: { p1: 0, p2: 0 }
 };
 
-const colors = ['#df0101', '#62019c', '#00a31b']; // Authentic Red, Purple, Green
-const shapes = ['oval', 'diamond', 'squiggle'];
-const fillings = ['solid', 'striped', 'open'];
-const numbers = [1, 2, 3];
+function createDeck() {
+    const colors = ['#ff4757', '#2ed573', '#5352ed'];
+    const shapes = ['oval', 'diamond', 'squiggle'];
+    const numbers = [1, 2, 3];
+    const fillings = ['solid', 'striped', 'open'];
+    const deck = [];
+    for (let color of colors) {
+        for (let shape of shapes) {
+            for (let number of numbers) {
+                for (let filling of fillings) {
+                    deck.push({ color, shape, number, filling });
+                }
+            }
+        }
+    }
+    return deck.sort(() => Math.random() - 0.5);
+}
+
+function isSet(cards) {
+    if (cards.length !== 3) return false;
+    const features = ['color', 'shape', 'number', 'filling'];
+    return features.every(feature => {
+        const values = cards.map(c => c[feature]);
+        return (values[0] === values[1] && values[1] === values[2]) || 
+               (values[0] !== values[1] && values[0] !== values[2] && values[1] !== values[2]);
+    });
+}
+
+function findSet(cards, matchedIndices) {
+    for (let i = 0; i < cards.length; i++) {
+        if (matchedIndices.includes(i)) continue;
+        for (let j = i + 1; j < cards.length; j++) {
+            if (matchedIndices.includes(j)) continue;
+            for (let k = j + 1; k < cards.length; k++) {
+                if (matchedIndices.includes(k)) continue;
+                if (isSet([cards[i], cards[j], cards[k]])) return [i, j, k];
+            }
+        }
+    }
+    return null;
+}
 
 function initGame() {
-    let deck = [];
-    for (let color of colors) 
-        for (let shape of shapes) 
-            for (let filling of fillings) 
-                for (let number of numbers) 
-                    deck.push({ color, shape, filling, number });
-    
-    deck.sort(() => Math.random() - 0.5);
-    gameState.fullDeck = deck;
-    gameState.currentCards = deck.slice(0, 16); 
-    gameState.matchedIndices = [];
-    gameState.flippedIndices = [];
-    gameState.scores = { p1: 0, p2: 0 };
-    gameState.currentPlayer = 'p1';
+    const deck = createDeck();
+    // SET TO 16 CARDS
+    state = {
+        deck: deck.slice(16),
+        currentCards: deck.slice(0, 16),
+        flippedIndices: [],
+        matchedIndices: [],
+        currentPlayer: 'p1',
+        scores: { p1: 0, p2: 0 }
+    };
 }
 
 initGame();
 
 io.on('connection', (socket) => {
-    socket.emit('init', gameState);
-
+    socket.emit('init', state);
     socket.on('cardClicked', (index) => {
-        if (gameState.flippedIndices.includes(index) || gameState.matchedIndices.includes(index) || gameState.flippedIndices.length >= 3) return;
-        
-        gameState.flippedIndices.push(index);
-        io.emit('syncFlip', gameState.flippedIndices);
-
-        if (gameState.flippedIndices.length === 3) {
-            const isSet = checkSetLogic(gameState.flippedIndices.map(i => gameState.currentCards[i]));
-            
-            setTimeout(() => {
-                if (isSet) {
-                    gameState.matchedIndices.push(...gameState.flippedIndices);
-                    gameState.scores[gameState.currentPlayer]++;
-                    io.emit('matchFound', { matched: gameState.matchedIndices, scores: gameState.scores });
-                } else {
-                    gameState.currentPlayer = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
-                    io.emit('turnEnd', { currentPlayer: gameState.currentPlayer });
-                }
-                gameState.flippedIndices = [];
-            }, 1200);
-        }
-    });
-
-    socket.on('requestHint', () => {
-        const remaining = gameState.currentCards.map((_, i) => i).filter(i => !gameState.matchedIndices.includes(i));
-        for (let i = 0; i < remaining.length; i++) {
-            for (let j = i + 1; j < remaining.length; j++) {
-                for (let k = j + 1; k < remaining.length; k++) {
-                    if (checkSetLogic([gameState.currentCards[remaining[i]], gameState.currentCards[remaining[j]], gameState.currentCards[remaining[k]]])) {
-                        socket.emit('hintResult', [remaining[i], remaining[j], remaining[k]]);
-                        return;
-                    }
-                }
+        if (state.flippedIndices.includes(index) || state.matchedIndices.includes(index) || state.flippedIndices.length >= 3) return;
+        state.flippedIndices.push(index);
+        io.emit('syncFlip', state.flippedIndices);
+        if (state.flippedIndices.length === 3) {
+            const selectedCards = state.flippedIndices.map(i => state.currentCards[i]);
+            if (isSet(selectedCards)) {
+                state.scores[state.currentPlayer]++;
+                state.matchedIndices.push(...state.flippedIndices);
+                io.emit('matchFound', { matched: state.flippedIndices, scores: state.scores });
+                state.flippedIndices = [];
+            } else {
+                state.currentPlayer = state.currentPlayer === 'p1' ? 'p2' : 'p1';
+                io.emit('turnEnd', { currentPlayer: state.currentPlayer });
+                state.flippedIndices = [];
             }
         }
-        socket.emit('hintResult', null);
     });
-
-    socket.on('resetGame', () => { initGame(); io.emit('init', gameState); });
+    socket.on('requestHint', () => {
+        const setIndices = findSet(state.currentCards, state.matchedIndices);
+        socket.emit('hintResult', setIndices);
+    });
+    socket.on('resetGame', () => {
+        initGame();
+        io.emit('init', state);
+    });
 });
 
-function checkSetLogic(cards) {
-    const props = ['color', 'shape', 'filling', 'number'];
-    return props.every(prop => {
-        const vals = new Set(cards.map(c => c[prop]));
-        return vals.size === 1 || vals.size === 3;
-    });
-}
-
-http.listen(3000, '0.0.0.0');
+server.listen(3000, () => console.log('Server running on port 3000'));
