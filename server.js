@@ -11,7 +11,10 @@ let state = {
     selected: [],
     player1Sets: [],
     player2Sets: [],
-    activePlayer: 'p1'
+    activePlayer: 'p1',
+    settings: {
+        revealTime: 1200
+    }
 };
 
 function createDeck() {
@@ -59,7 +62,7 @@ function fillBoard() {
 
 function resetGame() {
     state.deck = createDeck();
-    state.board = []; 
+    state.board = [];
     fillBoard();
     state.selected = [];
     state.player1Sets = [];
@@ -78,6 +81,11 @@ io.on('connection', (socket) => {
 
     socket.emit('gameState', getMaskedState());
 
+    socket.on('updateSettings', (newSettings) => {
+        state.settings = { ...state.settings, ...newSettings };
+        io.emit('gameState', getMaskedState());
+    });
+
     socket.on('selectCard', ({ cardId }) => {
         const card = state.board.find(c => c.id === cardId);
         if (!card || state.selected.find(s => s.id === cardId) || state.selected.length >= 3) return;
@@ -88,27 +96,21 @@ io.on('connection', (socket) => {
         if (state.selected.length === 3) {
             setTimeout(() => {
                 const foundSet = isSet(state.selected);
-                
                 if (foundSet) {
-                    // Logic: Player found a set!
                     const historyKey = state.activePlayer === 'p1' ? 'player1Sets' : 'player2Sets';
                     state[historyKey].push([...state.selected]);
-                    
                     state.selected.forEach(sel => {
                         const idx = state.board.findIndex(c => c.id === sel.id);
                         if (idx !== -1) state.board.splice(idx, 1);
                     });
-                    
                     fillBoard();
-                    // BONUS TURN: We do NOT toggle the activePlayer here.
+                    // BONUS TURN: activePlayer does not change
                 } else {
-                    // Logic: Not a set, switch turns.
                     state.activePlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
                 }
-                
                 state.selected = [];
                 io.emit('gameState', getMaskedState());
-            }, 1200);
+            }, state.settings.revealTime);
         }
     });
 
@@ -117,7 +119,10 @@ io.on('connection', (socket) => {
         socket.emit('hint', hintIds);
     });
 
-    socket.on('reset', () => { resetGame(); io.emit('gameState', getMaskedState()); });
+    socket.on('reset', () => {
+        resetGame();
+        io.emit('gameState', getMaskedState());
+    });
 
     socket.on('disconnect', () => {
         io.emit('playerCount', io.engine.clientsCount);
@@ -125,4 +130,4 @@ io.on('connection', (socket) => {
 });
 
 resetGame();
-http.listen(3000, () => console.log('Server running on http://localhost:3000'));
+http.listen(3000, () => console.log('Server running on port 3000'));

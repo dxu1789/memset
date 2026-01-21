@@ -31,94 +31,83 @@
         .turn-p1 { color: #4682b4; }
         .turn-p2 { color: #cd7f32; }
 
-        #deck-container { margin: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-        #deck-visual { display: flex; flex-wrap: wrap; width: 200px; justify-content: center; gap: 2px; height: 25px; overflow: hidden; opacity: 0.4; }
-        .tiny-card { width: 6px; height: 10px; background: #9b72aa; border: 1px solid #6b4e7a; border-radius: 1px; }
-        #deck-count { font-size: 14px; color: #666; }
+        /* Centered Deck Styling */
+        #deck-container { 
+            margin: 10px 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            gap: 8px; 
+            position: relative; 
+            min-width: 210px;
+        }
+        #deck-visual { 
+            display: flex; 
+            flex-wrap: wrap; 
+            width: 100%; 
+            justify-content: center; 
+            gap: 2px; 
+            max-height: 35px; 
+            overflow: hidden; 
+            opacity: 0.4;
+        }
+        .tiny-card { width: 6px; height: 10px; background: #9b72aa; border: 1px solid #6b4e7a; border-radius: 1px; flex-shrink: 0; }
+        
+        #deck-count { 
+            font-size: 14px; 
+            font-weight: bold; 
+            color: #fff; 
+            text-shadow: 0 0 4px #000; 
+            background: rgba(0,0,0,0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
+            pointer-events: none; 
+            white-space: nowrap; 
+        }
 
         #board { 
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); 
-            grid-template-rows: repeat(4, 1fr);
-            gap: 14px; 
-            width: 100%; 
-            max-width: 650px; 
-            justify-items: stretch;
+            display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+            gap: 14px; width: 100%; max-width: 650px; justify-items: stretch;
             transition: opacity 0.4s ease, transform 0.4s ease;
         }
 
-        /* Reset Animation */
-        #board.resetting {
-            opacity: 0;
-            transform: scale(0.95);
-        }
+        #board.resetting { opacity: 0; transform: scale(0.95); }
         
         .card { 
             aspect-ratio: 2/3; width: 100%; border: 2px solid #444; border-radius: 12px; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
             cursor: pointer; background: #fff; position: relative; padding: 5px; box-sizing: border-box;
             overflow: hidden;
-        }
-        
-        .card.hidden { 
-            background: #cbb4d4; 
-            border-color: #eee;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            transition: transform 0.25s ease-out;
         }
 
-        .card-back-logo {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            transform: rotate(90deg);
-            position: relative;
-            transform-origin: center center;
-            transform: rotate(90deg) scale(1.1); 
-        }
+        .card.flipping { transform: scaleX(0); }
+        .card.hidden { background: #cbb4d4; border-color: #eee; }
 
-        .logo-box {
-            width: 36px;
-            height: 53px; 
-            background: white;
-            border: 2.4px solid #6b2d91;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: "Georgia", serif;
-            font-weight: 900;
-            font-size: 38px; 
-            color: #6b2d91;
-            box-shadow: 4px -4px 0px #6b2d91;
-            text-shadow: 1px 1px 0px white;
-        }
-
-        .tm-symbol {
-            position: absolute;
-            right: -12px;
-            bottom: -5px;
-            font-size: 12px;
-            font-weight: bold;
-            color: #6b2d91;
-        }
+        .card-back-logo { display: flex; gap: 6px; align-items: center; transform: rotate(90deg) scale(1.1); }
+        .logo-box { width: 36px; height: 53px; background: white; border: 2.4px solid #6b2d91; display: flex; justify-content: center; align-items: center; font-family: "Georgia", serif; font-weight: 900; font-size: 38px; color: #6b2d91; box-shadow: 4px -4px 0px #6b2d91; }
+        .tm-symbol { position: absolute; right: -12px; bottom: -5px; font-size: 12px; font-weight: bold; color: #6b2d91; }
         
         .card.selected-p1 { border-color: #4682b4 !important; box-shadow: 0 0 6px #4682b4; }
         .card.selected-p2 { border-color: #cd7f32 !important; box-shadow: 0 0 6px #cd7f32; }
         .card.hint-p1 { border-color: #4682b4 !important; box-shadow: 0 0 12px #4682b4, inset 0 0 6px #4682b4 !important; }
         .card.hint-p2 { border-color: #cd7f32 !important; box-shadow: 0 0 12px #cd7f32, inset 0 0 6px #cd7f32 !important; }
         
-        .history .card { transform: scale(0.52); margin: 0 -30px; pointer-events: none; border-color: #333; flex-shrink: 0; width: 80px; height: 120px; }
+        .history .card { transform: scale(0.52) !important; margin: 0 -30px; pointer-events: none; border-color: #333; flex-shrink: 0; width: 80px; height: 120px; transition: none; }
         
         svg.card-svg { width: 85%; height: auto; max-height: 28%; overflow: visible; margin: 2px 0; }
         .controls { text-align: center; margin-bottom: 15px; }
-        
         button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 5px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px; transition: 0.2s; }
-        button:hover { background: #3a3a3a; }
-        
-        /* Confirm Button Style */
         button.confirm-btn { background: #912d2d; border-color: #ff5555; color: white; font-weight: bold; }
-        button.confirm-btn:hover { background: #b13d3d; }
+
+        #settings-container { 
+            width: 95%; max-width: 800px; background: #1e1e1e; border: 2px solid #333; border-radius: 12px; 
+            padding: 15px; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box;
+        }
+        .setting-item { display: flex; align-items: center; gap: 15px; }
+        .setting-item label { color: #bbb; min-width: 140px; font-size: 0.9em; }
+        input[type="range"] { flex-grow: 1; cursor: pointer; }
+        #reveal-val { font-family: monospace; color: #4682b4; width: 60px; font-weight: bold; }
 
         #connection-status { font-size: 12px; color: #888; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
         .status-dot { width: 8px; height: 8px; background: #0c0; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 200, 0, 0.6); }
@@ -143,9 +132,18 @@
         </div>
         <div id="board"></div>
     </div>
+
     <div id="history-container">
         <div id="p1-history" class="history"></div>
         <div id="p2-history" class="history"></div>
+    </div>
+
+    <div id="settings-container">
+        <div class="setting-item">
+            <label>Reveal Timeout:</label>
+            <input type="range" id="reveal-slider" min="200" max="3000" step="100" value="1200" oninput="updateRevealTime(this.value)">
+            <span id="reveal-val">1200ms</span>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -155,6 +153,7 @@
         let activeHintIds = [];
         let confirmReset = false;
         let resetTimeout = null;
+        let revealedCardIds = new Set(); 
 
         const paths = { oval: '<rect x="10" y="7" width="80" height="36" rx="18" />', diamond: '<polygon points="50,5 95,25 50,45 5,25" />', squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />' };
         const colors = ['#f00', '#0a0', '#808'];
@@ -162,62 +161,71 @@
         function handleReset() {
             const btn = document.getElementById('reset-btn');
             if (!confirmReset) {
-                confirmReset = true;
-                btn.innerText = "Confirm?";
-                btn.classList.add('confirm-btn');
-                
-                // Revert after 3 seconds of inactivity
-                resetTimeout = setTimeout(() => {
-                    confirmReset = false;
-                    btn.innerText = "New Game";
-                    btn.classList.remove('confirm-btn');
-                }, 3000);
+                confirmReset = true; btn.innerText = "Confirm?"; btn.classList.add('confirm-btn');
+                resetTimeout = setTimeout(() => { confirmReset = false; btn.innerText = "New Game"; btn.classList.remove('confirm-btn'); }, 3000);
             } else {
-                clearTimeout(resetTimeout);
-                confirmReset = false;
-                btn.innerText = "New Game";
-                btn.classList.remove('confirm-btn');
-                
-                // Trigger animation
+                clearTimeout(resetTimeout); confirmReset = false; btn.innerText = "New Game"; btn.classList.remove('confirm-btn');
                 document.getElementById('board').classList.add('resetting');
                 socket.emit('reset');
-                
-                // Remove animation class after short delay
-                setTimeout(() => {
-                    document.getElementById('board').classList.remove('resetting');
-                }, 400);
+                setTimeout(() => document.getElementById('board').classList.remove('resetting'), 400);
             }
+        }
+
+        function updateRevealTime(val) {
+            document.getElementById('reveal-val').innerText = val + "ms";
+            socket.emit('updateSettings', { revealTime: parseInt(val) });
         }
 
         function updateUI(s) {
             if (!s) return;
-            lastState = s;
             const b = document.getElementById('board');
-            const dc = document.getElementById('deck-count');
-            const dv = document.getElementById('deck-visual');
+            
+            if (s.settings && s.settings.revealTime) {
+                document.getElementById('reveal-slider').value = s.settings.revealTime;
+                document.getElementById('reveal-val').innerText = s.settings.revealTime + "ms";
+            }
+
+            const currentlySelectedIds = s.selected.map(sel => sel.id);
+            const newlyRevealed = currentlySelectedIds.filter(id => !revealedCardIds.has(id));
+            
+            if (!lastState || s.board.length !== lastState.board.length || s.selected.length === 0) {
+                revealedCardIds = new Set(currentlySelectedIds);
+            } else {
+                currentlySelectedIds.forEach(id => revealedCardIds.add(id));
+            }
+
             b.innerHTML = '';
-            dc.innerText = `${s.deckCount} cards left in deck`;
+            document.getElementById('deck-count').innerText = `${s.deckCount} cards left`;
+            
+            const dv = document.getElementById('deck-visual');
             dv.innerHTML = '';
             for(let i=0; i < s.deckCount; i++) {
                 const dot = document.createElement('div');
                 dot.className = 'tiny-card';
                 dv.appendChild(dot);
             }
+
             const t = document.getElementById('turn-display');
             t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
             t.className = `turn-${s.activePlayer}`;
-            document.getElementById('p1-history').className = 'history' + (s.activePlayer === 'p1' ? ' p1-active' : '');
-            document.getElementById('p2-history').className = 'history' + (s.activePlayer === 'p2' ? ' p2-active' : '');
+
             s.board.forEach(c => {
                 const isSelected = s.selected.some(sel => sel.id === c.id);
-                b.appendChild(drawCard(c, isSelected, s.activePlayer));
+                const cardEl = drawCard(c, isSelected, s.activePlayer);
+                
+                if (newlyRevealed.includes(c.id)) {
+                    cardEl.classList.add('flipping');
+                    requestAnimationFrame(() => {
+                        setTimeout(() => cardEl.classList.remove('flipping'), 20);
+                    });
+                }
+                b.appendChild(cardEl);
             });
+
             ['p1', 'p2'].forEach(player => {
                 const h = document.getElementById(`${player}-history`);
                 const sets = s[`player${player.slice(1)}Sets`];
-                const scoreColorClass = player === 'p1' ? 'p1-score-text' : 'p2-score-text';
-                const playerLabel = player === 'p1' ? 'Player 1' : 'Player 2';
-                h.innerHTML = `<div class="history-header"><h3 class="${scoreColorClass}">${playerLabel} Score: ${sets.length}</h3></div><div class="history-sets-area"></div>`;
+                h.innerHTML = `<div class="history-header"><h3 class="${player === 'p1' ? 'p1-score-text' : 'p2-score-text'}">${player === 'p1' ? 'Player 1' : 'Player 2'} Score: ${sets.length}</h3></div><div class="history-sets-area"></div>`;
                 const setsArea = h.querySelector('.history-sets-area');
                 sets.forEach(set => {
                     const group = document.createElement('div');
@@ -227,33 +235,35 @@
                 });
                 h.scrollTop = h.scrollHeight;
             });
+            lastState = s;
         }
 
         function drawCard(card, isSelected, activePlayer, isHistory = false) {
             const el = document.createElement('div');
             const playerClass = activePlayer === 'p1' ? 'p1' : 'p2';
             const isHinted = !isHistory && activeHintIds.includes(card.id);
-            if (card.hidden) {
+
+            if (card.hidden && !isHistory) {
                 el.className = 'card hidden' + (isHinted ? ` hint-${playerClass}` : '');
                 el.innerHTML = `<div class="card-back-logo"><div class="logo-box">S</div><div class="logo-box">E</div><div class="logo-box">T</div><div class="tm-symbol">®</div></div>`;
                 el.onclick = () => { activeHintIds = []; socket.emit('selectCard', { cardId: card.id }); };
-                return el;
+            } else {
+                const path = [paths.oval, paths.diamond, paths.squiggle][card.s];
+                const color = colors[card.c];
+                const patternId = `s-${card.c}-${card.id}-${isHistory ? 'h' : 'b'}`;
+                let fill = card.f === 0 ? color : (card.f === 2 ? 'none' : `url(#${patternId})`);
+                let shapes = '';
+                for(let i=0; i<card.n; i++) {
+                    shapes += `<svg viewBox="0 0 100 50" class="card-svg"><defs><pattern id="${patternId}" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(90)"><line x1="0" y1="0" x2="0" y2="4" stroke="${color}" stroke-width="2"/></pattern></defs><g fill="${fill}" stroke="${color}" stroke-width="4">${path}</g></svg>`;
+                }
+                el.className = 'card' + (isSelected ? ` selected-${playerClass}` : '') + (isHinted ? ` hint-${playerClass}` : '');
+                el.innerHTML = shapes;
+                if(!isHistory) el.onclick = () => { activeHintIds = []; socket.emit('selectCard', { cardId: card.id }); };
             }
-            const path = [paths.oval, paths.diamond, paths.squiggle][card.s];
-            const color = colors[card.c];
-            const patternId = `s-${card.c}-${card.id}`;
-            let fill = card.f === 0 ? color : (card.f === 2 ? 'none' : `url(#${patternId})`);
-            let shapes = '';
-            for(let i=0; i<card.n; i++) {
-                shapes += `<svg viewBox="0 0 100 50" class="card-svg"><defs><pattern id="${patternId}" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(90)"><line x1="0" y1="0" x2="0" y2="4" stroke="${color}" stroke-width="2"/></pattern></defs><g fill="${fill}" stroke="${color}" stroke-width="4">${path}</g></svg>`;
-            }
-            el.className = 'card' + (isSelected ? ` selected-${playerClass}` : '') + (isHinted ? ` hint-${playerClass}` : '');
-            el.innerHTML = shapes;
-            el.onclick = () => { activeHintIds = []; socket.emit('selectCard', { cardId: card.id }); };
             return el;
         }
 
-        socket.on('gameState', (s) => { updateUI(s); });
+        socket.on('gameState', updateUI);
         socket.on('hint', (ids) => { if (ids && ids.length > 0) { activeHintIds = ids; updateUI(lastState); } });
         socket.on('playerCount', (count) => { document.getElementById('player-count').innerText = `${count} player${count === 1 ? '' : 's'} connected`; });
     </script>
