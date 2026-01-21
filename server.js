@@ -20,7 +20,6 @@ function createDeck() {
         for (let c = 0; c < 3; c++) {
             for (let n = 0; n < 3; n++) {
                 for (let f = 0; f < 3; f++) {
-                    // Logic: shape, color, number, fill
                     deck.push({ s, c, n: n + 1, f, id: Math.random().toString(36).substr(2, 9) });
                 }
             }
@@ -52,7 +51,6 @@ function findSet(board) {
     return null;
 }
 
-// Helper to keep the board at exactly 16 cards
 function fillBoard() {
     while (state.board.length < 16 && state.deck.length > 0) {
         state.board.push(state.deck.pop());
@@ -62,7 +60,7 @@ function fillBoard() {
 function resetGame() {
     state.deck = createDeck();
     state.board = []; 
-    fillBoard(); // Initialize with 16 cards
+    fillBoard();
     state.selected = [];
     state.player1Sets = [];
     state.player2Sets = [];
@@ -75,7 +73,6 @@ io.on('connection', (socket) => {
     const getMaskedState = () => ({
         ...state,
         deckCount: state.deck.length,
-        // Map cards: show the front if selected, otherwise show 'hidden' back
         board: state.board.map(c => state.selected.some(s => s.id === c.id) ? c : { id: c.id, hidden: true })
     });
 
@@ -83,7 +80,6 @@ io.on('connection', (socket) => {
 
     socket.on('selectCard', ({ cardId }) => {
         const card = state.board.find(c => c.id === cardId);
-        // Basic validation: must exist, must not be already selected, must not exceed 3
         if (!card || state.selected.find(s => s.id === cardId) || state.selected.length >= 3) return;
 
         state.selected.push(card);
@@ -91,22 +87,25 @@ io.on('connection', (socket) => {
 
         if (state.selected.length === 3) {
             setTimeout(() => {
-                if (isSet(state.selected)) {
+                const foundSet = isSet(state.selected);
+                
+                if (foundSet) {
+                    // Logic: Player found a set!
                     const historyKey = state.activePlayer === 'p1' ? 'player1Sets' : 'player2Sets';
                     state[historyKey].push([...state.selected]);
                     
-                    // Remove the three cards from the board
                     state.selected.forEach(sel => {
                         const idx = state.board.findIndex(c => c.id === sel.id);
                         if (idx !== -1) state.board.splice(idx, 1);
                     });
                     
-                    // Refill board to 16
                     fillBoard();
+                    // BONUS TURN: We do NOT toggle the activePlayer here.
+                } else {
+                    // Logic: Not a set, switch turns.
+                    state.activePlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
                 }
                 
-                // Switch turn and clear selection regardless of match
-                state.activePlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
                 state.selected = [];
                 io.emit('gameState', getMaskedState());
             }, 1200);
