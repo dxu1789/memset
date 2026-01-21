@@ -61,8 +61,12 @@ function resetGame() {
 }
 
 io.on('connection', (socket) => {
+    // Broadcast player count to all clients
+    io.emit('playerCount', io.engine.clientsCount);
+
     const getMaskedState = () => ({
         ...state,
+        deckCount: state.deck.length,
         board: state.board.map(c => state.selected.some(s => s.id === c.id) ? c : { id: c.id, hidden: true })
     });
 
@@ -86,7 +90,6 @@ io.on('connection', (socket) => {
                         else state.board.splice(idx, 1);
                     });
                 }
-                // Flip turns after every 3 cards
                 state.activePlayer = state.activePlayer === 'p1' ? 'p2' : 'p1';
                 state.selected = [];
                 io.emit('gameState', getMaskedState());
@@ -100,6 +103,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('reset', () => { resetGame(); io.emit('gameState', getMaskedState()); });
+
+    socket.on('disconnect', () => {
+        io.emit('playerCount', io.engine.clientsCount);
+    });
 });
 
 resetGame();
