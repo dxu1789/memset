@@ -43,7 +43,14 @@
             gap: 14px; 
             width: 100%; 
             max-width: 650px; 
-            justify-items: stretch; 
+            justify-items: stretch;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        /* Reset Animation */
+        #board.resetting {
+            opacity: 0;
+            transform: scale(0.95);
         }
         
         .card { 
@@ -68,7 +75,7 @@
             transform: rotate(90deg);
             position: relative;
             transform-origin: center center;
-            transform: rotate(90deg) scale(1.1); /* 5% reduction from original 1.15 */
+            transform: rotate(90deg) scale(1.1); 
         }
 
         .logo-box {
@@ -81,7 +88,7 @@
             align-items: center;
             font-family: "Georgia", serif;
             font-weight: 900;
-            font-size: 38px; /* 5% reduction from 40px */
+            font-size: 38px; 
             color: #6b2d91;
             box-shadow: 4px -4px 0px #6b2d91;
             text-shadow: 1px 1px 0px white;
@@ -105,8 +112,13 @@
         
         svg.card-svg { width: 85%; height: auto; max-height: 28%; overflow: visible; margin: 2px 0; }
         .controls { text-align: center; margin-bottom: 15px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 5px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px; }
+        
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 5px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px; transition: 0.2s; }
         button:hover { background: #3a3a3a; }
+        
+        /* Confirm Button Style */
+        button.confirm-btn { background: #912d2d; border-color: #ff5555; color: white; font-weight: bold; }
+        button.confirm-btn:hover { background: #b13d3d; }
 
         #connection-status { font-size: 12px; color: #888; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
         .status-dot { width: 8px; height: 8px; background: #0c0; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 200, 0, 0.6); }
@@ -122,7 +134,7 @@
             </div>
             <div style="margin-bottom: 5px;">
                 <button onclick="socket.emit('getHint')">Hint</button>
-                <button onclick="socket.emit('reset')">New Game</button>
+                <button id="reset-btn" onclick="handleReset()">New Game</button>
             </div>
             <div id="connection-status">
                 <div class="status-dot"></div>
@@ -141,8 +153,41 @@
         const socket = io();
         let lastState = null;
         let activeHintIds = [];
+        let confirmReset = false;
+        let resetTimeout = null;
+
         const paths = { oval: '<rect x="10" y="7" width="80" height="36" rx="18" />', diamond: '<polygon points="50,5 95,25 50,45 5,25" />', squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />' };
         const colors = ['#f00', '#0a0', '#808'];
+
+        function handleReset() {
+            const btn = document.getElementById('reset-btn');
+            if (!confirmReset) {
+                confirmReset = true;
+                btn.innerText = "Confirm?";
+                btn.classList.add('confirm-btn');
+                
+                // Revert after 3 seconds of inactivity
+                resetTimeout = setTimeout(() => {
+                    confirmReset = false;
+                    btn.innerText = "New Game";
+                    btn.classList.remove('confirm-btn');
+                }, 3000);
+            } else {
+                clearTimeout(resetTimeout);
+                confirmReset = false;
+                btn.innerText = "New Game";
+                btn.classList.remove('confirm-btn');
+                
+                // Trigger animation
+                document.getElementById('board').classList.add('resetting');
+                socket.emit('reset');
+                
+                // Remove animation class after short delay
+                setTimeout(() => {
+                    document.getElementById('board').classList.remove('resetting');
+                }, 400);
+            }
+        }
 
         function updateUI(s) {
             if (!s) return;
