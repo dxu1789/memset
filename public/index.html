@@ -141,6 +141,14 @@
         #cursor-indicator.active { opacity: 0.8; }
         #cursor-indicator.p1-cursor { border-color: #4682b4; box-shadow: 0 0 10px rgba(70, 130, 180, 0.5); }
         #cursor-indicator.p2-cursor { border-color: #cd7f32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.5); }
+        
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; margin: 0 10px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: 0.3s; border-radius: 24px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #4682b4; }
+        input:checked + .toggle-slider:before { transform: translateX(26px); }
+        #ultra-status { font-family: monospace; color: #4682b4; width: 60px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -179,6 +187,14 @@
             <label>Cursor Indicator Size:</label>
             <input type="range" id="cursor-slider" min="0" max="32" step="2" value="16" oninput="updateCursorSize(this.value)">
             <span id="cursor-val">16px</span>
+        </div>
+        <div class="setting-item">
+            <label>Ultra Mode:</label>
+            <label class="toggle-switch">
+                <input type="checkbox" id="ultra-toggle" onchange="updateUltraMode(this.checked)">
+                <span class="toggle-slider"></span>
+            </label>
+            <span id="ultra-status">OFF</span>
         </div>
     </div>
 
@@ -267,6 +283,11 @@
             document.getElementById('reveal-val').innerText = val + "ms";
             socket.emit('updateSettings', { revealTime: parseInt(val) });
         }
+        
+        function updateUltraMode(enabled) {
+            document.getElementById('ultra-status').innerText = enabled ? 'ON' : 'OFF';
+            socket.emit('updateSettings', { ultraMode: enabled });
+        }
 
         function updateUI(s) {
             if (!s) return;
@@ -275,6 +296,11 @@
             if (s.settings && s.settings.revealTime) {
                 document.getElementById('reveal-slider').value = s.settings.revealTime;
                 document.getElementById('reveal-val').innerText = s.settings.revealTime + "ms";
+            }
+            
+            if (s.settings && s.settings.ultraMode !== undefined) {
+                document.getElementById('ultra-toggle').checked = s.settings.ultraMode;
+                document.getElementById('ultra-status').innerText = s.settings.ultraMode ? 'ON' : 'OFF';
             }
 
             const currentlySelectedIds = s.selected.map(sel => sel.id);

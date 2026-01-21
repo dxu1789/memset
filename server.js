@@ -13,7 +13,8 @@ let state = {
     player2Sets: [],
     activePlayer: 'p1',
     settings: {
-        revealTime: 1500
+        revealTime: 1500,
+        ultraMode: false
     }
 };
 
@@ -41,12 +42,85 @@ function isSet(cards) {
     });
 }
 
+function isUltraSet(cards) {
+    if (cards.length !== 4) return false;
+    
+    // Try all possible pairings: (0,1)+(2,3), (0,2)+(1,3), (0,3)+(1,2)
+    const pairings = [
+        [[0, 1], [2, 3]],
+        [[0, 2], [1, 3]],
+        [[0, 3], [1, 2]]
+    ];
+    
+    for (const [[i1, i2], [i3, i4]] of pairings) {
+        // Find hypothetical 5th card that would complete both pairs
+        const hypothetical = findHypotheticalCard(cards[i1], cards[i2]);
+        if (!hypothetical) continue;
+        
+        // Check if the same hypothetical completes the second pair
+        const hypothetical2 = findHypotheticalCard(cards[i3], cards[i4]);
+        if (!hypothetical2) continue;
+        
+        // Check if both hypotheticals are the same
+        if (cardsEqual(hypothetical, hypothetical2)) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function findHypotheticalCard(card1, card2) {
+    // For each feature, determine what the 3rd card needs to be
+    const hypothetical = {};
+    const features = ['s', 'c', 'n', 'f'];
+    
+    for (const feature of features) {
+        const val1 = card1[feature];
+        const val2 = card2[feature];
+        
+        if (val1 === val2) {
+            // If same, third must be same
+            hypothetical[feature] = val1;
+        } else {
+            // If different, third must be the remaining value (all different)
+            const possibleValues = feature === 'n' ? [1, 2, 3] : [0, 1, 2];
+            const remaining = possibleValues.find(v => v !== val1 && v !== val2);
+            hypothetical[feature] = remaining;
+        }
+    }
+    
+    return hypothetical;
+}
+
+function cardsEqual(card1, card2) {
+    return card1.s === card2.s && 
+           card1.c === card2.c && 
+           card1.n === card2.n && 
+           card1.f === card2.f;
+}
+
 function findSet(board) {
     for (let i = 0; i < board.length; i++) {
         for (let j = i + 1; j < board.length; j++) {
             for (let k = j + 1; k < board.length; k++) {
                 if (isSet([board[i], board[j], board[k]])) {
                     return [board[i].id, board[j].id, board[k].id];
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function findUltraSetOnBoard(board) {
+    for (let i = 0; i < board.length; i++) {
+        for (let j = i + 1; j < board.length; j++) {
+            for (let k = j + 1; k < board.length; k++) {
+                for (let l = k + 1; l < board.length; l++) {
+                    if (isUltraSet([board[i], board[j], board[k], board[l]])) {
+                        return [board[i].id, board[j].id, board[k].id, board[l].id];
+                    }
                 }
             }
         }
@@ -87,16 +161,20 @@ io.on('connection', (socket) => {
     });
 
     socket.on('selectCard', ({ cardId }) => {
+        const maxCards = state.settings.ultraMode ? 4 : 3;
         const card = state.board.find(c => c.id === cardId);
-        if (!card || state.selected.find(s => s.id === cardId) || state.selected.length >= 3) return;
+        if (!card || state.selected.find(s => s.id === cardId) || state.selected.length >= maxCards) return;
 
         state.selected.push(card);
         io.emit('gameState', getMaskedState());
 
-        if (state.selected.length === 3) {
+        if (state.selected.length === maxCards) {
             setTimeout(() => {
-                const foundSet = isSet(state.selected);
-                if (foundSet) {
+                const foundPattern = state.settings.ultraMode ? 
+                    isUltraSet(state.selected) : 
+                    isSet(state.selected);
+                    
+                if (foundPattern) {
                     const historyKey = state.activePlayer === 'p1' ? 'player1Sets' : 'player2Sets';
                     state[historyKey].push([...state.selected]);
                     state.selected.forEach(sel => {
@@ -115,7 +193,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('getHint', () => {
-        const hintIds = findSet(state.board);
+        const hintIds = state.settings.ultraMode ? 
+            findUltraSetOnBoard(state.board) : 
+            findSet(state.board);
         socket.emit('hint', hintIds);
     });
 
