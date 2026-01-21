@@ -6,7 +6,6 @@
         body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 10px; background: #121212; color: #eee; gap: 15px; margin: 0; }
         
         #game-container { width: 95%; max-width: 800px; display: flex; flex-direction: column; align-items: center; }
-
         #history-container { display: flex; width: 100%; max-width: 800px; gap: 10px; margin-top: 20px; padding-bottom: 20px; }
 
         .history { 
@@ -16,13 +15,10 @@
         }
 
         .history-sets-area { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; width: 100%; }
-        
         .history.p1-active { border-color: #4682b4; background: #1a1d24; box-shadow: 0 0 10px rgba(70, 130, 180, 0.4); }
         .history.p2-active { border-color: #cd7f32; background: #24201a; box-shadow: 0 0 10px rgba(205, 127, 50, 0.4); }
-        
         .history-header { width: 100%; text-align: center; margin-bottom: 12px; border-bottom: 1px solid #444; padding-bottom: 6px; }
         .history-header h3 { margin: 0; font-size: 0.95em; font-weight: bold; }
-        
         .p1-score-text { color: #4682b4; }
         .p2-score-text { color: #cd7f32; }
 
@@ -37,18 +33,68 @@
 
         #deck-container { margin: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         #deck-visual { display: flex; flex-wrap: wrap; width: 200px; justify-content: center; gap: 2px; height: 25px; overflow: hidden; opacity: 0.4; }
-        .tiny-card { width: 6px; height: 10px; background: #2c3e50; border: 1px solid #1a252f; border-radius: 1px; }
+        .tiny-card { width: 6px; height: 10px; background: #9b72aa; border: 1px solid #6b4e7a; border-radius: 1px; }
         #deck-count { font-size: 14px; color: #666; }
 
-        #board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; width: 100%; justify-items: stretch; }
+        #board { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            grid-template-rows: repeat(4, 1fr);
+            gap: 15px; 
+            width: 100%; 
+            justify-items: stretch; 
+        }
         
         .card { 
             aspect-ratio: 2/3; width: 100%; border: 2px solid #444; border-radius: 12px; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
             cursor: pointer; background: #fff; position: relative; padding: 5px; box-sizing: border-box;
+            overflow: hidden;
         }
         
-        .card.hidden { background: #2c3e50; border-color: #1a252f; }
+        .card.hidden { 
+            background: #cbb4d4; 
+            border-color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card-back-logo {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            transform: rotate(90deg);
+            position: relative;
+            transform-origin: center center;
+            transform: rotate(90deg) scale(1.15); 
+        }
+
+        .logo-box {
+            width: 38px;
+            height: 56px; 
+            background: white;
+            border: 2.5px solid #6b2d91;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: "Georgia", serif;
+            font-weight: 900;
+            font-size: 40px; 
+            color: #6b2d91;
+            box-shadow: 4px -4px 0px #6b2d91;
+            text-shadow: 1px 1px 0px white;
+        }
+
+        .tm-symbol {
+            position: absolute;
+            right: -12px;
+            bottom: -5px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #6b2d91;
+        }
+        
         .card.selected-p1 { border-color: #4682b4 !important; box-shadow: 0 0 6px #4682b4; }
         .card.selected-p2 { border-color: #cd7f32 !important; box-shadow: 0 0 6px #cd7f32; }
         .card.hint-p1 { border-color: #4682b4 !important; box-shadow: 0 0 12px #4682b4, inset 0 0 6px #4682b4 !important; }
@@ -61,36 +107,29 @@
         button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 0 5px; background: #2a2a2a; color: white; border: 1px solid #444; border-radius: 6px; }
         button:hover { background: #3a3a3a; }
 
-        /* Connection status layout */
         #connection-status { font-size: 12px; color: #888; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
         .status-dot { width: 8px; height: 8px; background: #0c0; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 200, 0, 0.6); }
     </style>
 </head>
 <body>
-
     <div id="game-container">
         <div class="controls">
             <div id="turn-display">Player 1's Turn</div>
-            
             <div id="deck-container">
                 <div id="deck-visual"></div>
                 <div id="deck-count">81 cards left</div>
             </div>
-
             <div style="margin-bottom: 5px;">
                 <button onclick="socket.emit('getHint')">Hint</button>
                 <button onclick="socket.emit('reset')">New Game</button>
             </div>
-
             <div id="connection-status">
                 <div class="status-dot"></div>
-                <span id="player-count">Updating connection...</span>
+                <span id="player-count">1 player connected</span>
             </div>
         </div>
-
         <div id="board"></div>
     </div>
-
     <div id="history-container">
         <div id="p1-history" class="history"></div>
         <div id="p2-history" class="history"></div>
@@ -101,22 +140,15 @@
         const socket = io();
         let lastState = null;
         let activeHintIds = [];
-
-        const paths = {
-            oval: '<rect x="10" y="7" width="80" height="36" rx="18" />',
-            diamond: '<polygon points="50,5 95,25 50,45 5,25" />',
-            squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />'
-        };
+        const paths = { oval: '<rect x="10" y="7" width="80" height="36" rx="18" />', diamond: '<polygon points="50,5 95,25 50,45 5,25" />', squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />' };
         const colors = ['#f00', '#0a0', '#808'];
 
         function updateUI(s) {
             if (!s) return;
             lastState = s;
             const b = document.getElementById('board');
-            const t = document.getElementById('turn-display');
             const dc = document.getElementById('deck-count');
             const dv = document.getElementById('deck-visual');
-            
             b.innerHTML = '';
             dc.innerText = `${s.deckCount} cards left in deck`;
             dv.innerHTML = '';
@@ -125,35 +157,36 @@
                 dot.className = 'tiny-card';
                 dv.appendChild(dot);
             }
-            
+            const t = document.getElementById('turn-display');
             t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
             t.className = `turn-${s.activePlayer}`;
-            
             document.getElementById('p1-history').className = 'history' + (s.activePlayer === 'p1' ? ' p1-active' : '');
             document.getElementById('p2-history').className = 'history' + (s.activePlayer === 'p2' ? ' p2-active' : '');
-
+            
+            // Render the board
             s.board.forEach(c => {
                 const isSelected = s.selected.some(sel => sel.id === c.id);
                 b.appendChild(drawCard(c, isSelected, s.activePlayer));
             });
-            
+
+            // FIXED: If server only sends 12, fill the remaining 4 with hidden cards for 4x4
+            while (b.children.length < 16) {
+                b.appendChild(drawCard({ hidden: true, id: 'filler-' + b.children.length }, false, s.activePlayer));
+            }
+
             ['p1', 'p2'].forEach(player => {
                 const h = document.getElementById(`${player}-history`);
                 const sets = s[`player${player.slice(1)}Sets`];
                 const scoreColorClass = player === 'p1' ? 'p1-score-text' : 'p2-score-text';
                 const playerLabel = player === 'p1' ? 'Player 1' : 'Player 2';
-                
-                h.innerHTML = `<div class="history-header"><h3 class="${scoreColorClass}">${playerLabel} Score: ${sets.length}</h3></div>`;
-                
-                const setsArea = document.createElement('div');
-                setsArea.className = 'history-sets-area';
+                h.innerHTML = `<div class="history-header"><h3 class="${scoreColorClass}">${playerLabel} Score: ${sets.length}</h3></div><div class="history-sets-area"></div>`;
+                const setsArea = h.querySelector('.history-sets-area');
                 sets.forEach(set => {
                     const group = document.createElement('div');
                     group.className = 'history-group';
                     set.forEach(c => group.appendChild(drawCard(c, false, player, true)));
                     setsArea.appendChild(group);
                 });
-                h.appendChild(setsArea);
                 h.scrollTop = h.scrollHeight;
             });
         }
@@ -162,46 +195,29 @@
             const el = document.createElement('div');
             const playerClass = activePlayer === 'p1' ? 'p1' : 'p2';
             const isHinted = !isHistory && activeHintIds.includes(card.id);
-
             if (card.hidden) {
                 el.className = 'card hidden' + (isHinted ? ` hint-${playerClass}` : '');
+                el.innerHTML = `<div class="card-back-logo"><div class="logo-box">S</div><div class="logo-box">E</div><div class="logo-box">T</div><div class="tm-symbol">®</div></div>`;
                 el.onclick = () => { activeHintIds = []; socket.emit('selectCard', { cardId: card.id }); };
                 return el;
             }
-
             const path = [paths.oval, paths.diamond, paths.squiggle][card.s];
             const color = colors[card.c];
             const patternId = `s-${card.c}-${card.id}`;
             let fill = card.f === 0 ? color : (card.f === 2 ? 'none' : `url(#${patternId})`);
-            
             let shapes = '';
             for(let i=0; i<card.n; i++) {
-                shapes += `<svg viewBox="0 0 100 50" class="card-svg">
-                    <defs><pattern id="${patternId}" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(90)"><line x1="0" y1="0" x2="0" y2="4" stroke="${color}" stroke-width="2"/></pattern></defs>
-                    <g fill="${fill}" stroke="${color}" stroke-width="4">${path}</g>
-                </svg>`;
+                shapes += `<svg viewBox="0 0 100 50" class="card-svg"><defs><pattern id="${patternId}" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(90)"><line x1="0" y1="0" x2="0" y2="4" stroke="${color}" stroke-width="2"/></pattern></defs><g fill="${fill}" stroke="${color}" stroke-width="4">${path}</g></svg>`;
             }
-
             el.className = 'card' + (isSelected ? ` selected-${playerClass}` : '') + (isHinted ? ` hint-${playerClass}` : '');
             el.innerHTML = shapes;
             el.onclick = () => { activeHintIds = []; socket.emit('selectCard', { cardId: card.id }); };
             return el;
         }
 
-        socket.on('gameState', (s) => {
-            if (!lastState || JSON.stringify(s.board) !== JSON.stringify(lastState.board)) { activeHintIds = []; }
-            updateUI(s);
-        });
-
-        socket.on('hint', (ids) => {
-            if (ids && ids.length > 0) { activeHintIds = ids; updateUI(lastState); }
-        });
-
-        // This listener updates the text whenever the server sends a 'playerCount' event
-        socket.on('playerCount', (count) => {
-            const el = document.getElementById('player-count');
-            if (el) el.innerText = `${count} player${count === 1 ? '' : 's'} connected`;
-        });
+        socket.on('gameState', (s) => { updateUI(s); });
+        socket.on('hint', (ids) => { if (ids && ids.length > 0) { activeHintIds = ids; updateUI(lastState); } });
+        socket.on('playerCount', (count) => { document.getElementById('player-count').innerText = `${count} player${count === 1 ? '' : 's'} connected`; });
     </script>
 </body>
 </html>
