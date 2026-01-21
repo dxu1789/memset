@@ -124,9 +124,27 @@
 
         #connection-status { font-size: 12px; color: #888; margin-top: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; }
         .status-dot { width: 8px; height: 8px; background: #0c0; border-radius: 50%; box-shadow: 0 0 6px rgba(0, 200, 0, 0.6); }
+        
+        #cursor-indicator {
+            position: fixed;
+            width: 32px;
+            height: 32px;
+            border: 3px solid;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: border-color 0.3s ease, opacity 0.2s ease;
+            opacity: 0;
+        }
+        
+        #cursor-indicator.active { opacity: 0.8; }
+        #cursor-indicator.p1-cursor { border-color: #4682b4; box-shadow: 0 0 10px rgba(70, 130, 180, 0.5); }
+        #cursor-indicator.p2-cursor { border-color: #cd7f32; box-shadow: 0 0 10px rgba(205, 127, 50, 0.5); }
     </style>
 </head>
 <body>
+    <div id="cursor-indicator"></div>
     <div id="game-container">
         <div class="controls">
             <div id="turn-display">Player 1's Turn</div>
@@ -157,6 +175,11 @@
             <input type="range" id="reveal-slider" min="500" max="5000" step="100" value="1500" oninput="updateRevealTime(this.value)">
             <span id="reveal-val">1500ms</span>
         </div>
+        <div class="setting-item">
+            <label>Cursor Indicator Size:</label>
+            <input type="range" id="cursor-slider" min="0" max="32" step="2" value="16" oninput="updateCursorSize(this.value)">
+            <span id="cursor-val">16px</span>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -167,7 +190,55 @@
         let confirmReset = false;
         let resetTimeout = null;
         let revealedCardIds = new Set();
-        let isAnimatingCollection = false; 
+        let isAnimatingCollection = false;
+        
+        // Cursor indicator setup
+        const cursorIndicator = document.getElementById('cursor-indicator');
+        let currentPlayer = 'p1';
+        let cursorSize = 16; // Default to halfway (32/2)
+        
+        document.addEventListener('mousemove', (e) => {
+            cursorIndicator.style.left = e.clientX + 'px';
+            cursorIndicator.style.top = e.clientY + 'px';
+            if (!cursorIndicator.classList.contains('active')) {
+                cursorIndicator.classList.add('active');
+            }
+        });
+        
+        document.addEventListener('mouseleave', () => {
+            cursorIndicator.classList.remove('active');
+        });
+        
+        document.addEventListener('mouseenter', () => {
+            cursorIndicator.classList.add('active');
+        });
+        
+        function updateCursorColor(player) {
+            currentPlayer = player;
+            cursorIndicator.classList.remove('p1-cursor', 'p2-cursor');
+            cursorIndicator.classList.add(`${player}-cursor`);
+        }
+        
+        function updateCursorSize(size) {
+            cursorSize = parseInt(size);
+            document.getElementById('cursor-val').innerText = size + 'px';
+            if (cursorSize === 0) {
+                cursorIndicator.style.width = '0px';
+                cursorIndicator.style.height = '0px';
+                cursorIndicator.style.borderWidth = '0px';
+                cursorIndicator.style.opacity = '0';
+            } else {
+                cursorIndicator.style.width = cursorSize + 'px';
+                cursorIndicator.style.height = cursorSize + 'px';
+                cursorIndicator.style.borderWidth = Math.max(2, Math.round(cursorSize * 0.09375)) + 'px';
+                if (cursorIndicator.classList.contains('active')) {
+                    cursorIndicator.style.opacity = '0.8';
+                }
+            }
+        }
+        
+        // Initialize cursor size
+        updateCursorSize(16); 
 
         const paths = { oval: '<rect x="10" y="7" width="80" height="36" rx="18" />', diamond: '<polygon points="50,5 95,25 50,45 5,25" />', squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />' };
         const colors = ['#f00', '#0a0', '#808'];
@@ -345,6 +416,9 @@
             const t = document.getElementById('turn-display');
             t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
             t.className = `turn-${s.activePlayer}`;
+            
+            // Update cursor color based on active player
+            updateCursorColor(s.activePlayer);
         }
         
         function animateSetCollection(cardIds, player, oldState, onComplete) {
