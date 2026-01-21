@@ -13,7 +13,7 @@ let state = {
     player2Sets: [],
     activePlayer: 'p1',
     settings: {
-        revealTime: 1200
+        revealTime: 1500
     }
 };
 

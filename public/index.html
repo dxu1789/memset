@@ -78,10 +78,23 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
             cursor: pointer; background: #fff; position: relative; padding: 5px; box-sizing: border-box;
             overflow: hidden;
-            transition: transform 0.25s ease-out;
+            transition: transform 0.15s ease-in-out, border-color 0.2s, box-shadow 0.2s;
         }
 
         .card.flipping { transform: scaleX(0); }
+        .card.flipping-back { transform: scaleX(1); }
+        
+        .card.collecting {
+            position: fixed;
+            z-index: 1000;
+            pointer-events: none;
+            transition: all 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        
+        .card.collected {
+            transform: scale(0.2) !important;
+            opacity: 0;
+        }
         .card.hidden { background: #cbb4d4; border-color: #eee; }
 
         .card-back-logo { display: flex; gap: 6px; align-items: center; transform: rotate(90deg) scale(1.1); }
@@ -141,8 +154,8 @@
     <div id="settings-container">
         <div class="setting-item">
             <label>Reveal Timeout:</label>
-            <input type="range" id="reveal-slider" min="200" max="3000" step="100" value="1200" oninput="updateRevealTime(this.value)">
-            <span id="reveal-val">1200ms</span>
+            <input type="range" id="reveal-slider" min="500" max="5000" step="100" value="1500" oninput="updateRevealTime(this.value)">
+            <span id="reveal-val">1500ms</span>
         </div>
     </div>
 
@@ -153,7 +166,8 @@
         let activeHintIds = [];
         let confirmReset = false;
         let resetTimeout = null;
-        let revealedCardIds = new Set(); 
+        let revealedCardIds = new Set();
+        let isAnimatingCollection = false; 
 
         const paths = { oval: '<rect x="10" y="7" width="80" height="36" rx="18" />', diamond: '<polygon points="50,5 95,25 50,45 5,25" />', squiggle: '<path d="M10,25 C10,0 35,0 55,14 S90,0 90,25 S65,50 45,36 S10,50 10,25 Z" />' };
         const colors = ['#f00', '#0a0', '#808'];
@@ -188,40 +202,107 @@
             const currentlySelectedIds = s.selected.map(sel => sel.id);
             const newlyRevealed = currentlySelectedIds.filter(id => !revealedCardIds.has(id));
             
+            // Detect cards that are being hidden (were revealed, now not selected)
+            const previouslyRevealed = Array.from(revealedCardIds);
+            const newlyHidden = previouslyRevealed.filter(id => 
+                !currentlySelectedIds.includes(id) && 
+                s.board.some(card => card.id === id)
+            );
+            
+            // Detect if a SET was just found (cards were removed from board)
+            const removedCardIds = lastState ? 
+                lastState.board.filter(c => !s.board.some(bc => bc.id === c.id)).map(c => c.id) : [];
+            
             if (!lastState || s.board.length !== lastState.board.length || s.selected.length === 0) {
                 revealedCardIds = new Set(currentlySelectedIds);
             } else {
                 currentlySelectedIds.forEach(id => revealedCardIds.add(id));
             }
-
-            b.innerHTML = '';
-            document.getElementById('deck-count').innerText = `${s.deckCount} cards left`;
             
-            const dv = document.getElementById('deck-visual');
-            dv.innerHTML = '';
-            for(let i=0; i < s.deckCount; i++) {
-                const dot = document.createElement('div');
-                dot.className = 'tiny-card';
-                dv.appendChild(dot);
+            // Remove hidden cards from revealed set
+            newlyHidden.forEach(id => revealedCardIds.delete(id));
+            removedCardIds.forEach(id => revealedCardIds.delete(id));
+
+            // If cards were removed (SET found), animate them flying to score area
+            if (removedCardIds.length > 0 && lastState && !isAnimatingCollection) {
+                isAnimatingCollection = true;
+                animateSetCollection(removedCardIds, s.activePlayer, lastState, () => {
+                    isAnimatingCollection = false;
+                    // After animation, rebuild the board
+                    rebuildBoard(s);
+                    // Update score areas with new state
+                    updateScoreAreas(s);
+                });
+                // Update other UI elements but skip board rebuild
+                updateNonBoardUI(s);
+                lastState = s;
+                return;
             }
 
-            const t = document.getElementById('turn-display');
-            t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
-            t.className = `turn-${s.activePlayer}`;
+            // Rebuild board if card IDs changed (SET found/removed) or count changed
+            const currentBoardIds = s.board.map(c => c.id).sort().join(',');
+            const lastBoardIds = lastState ? lastState.board.map(c => c.id).sort().join(',') : '';
+            const boardChanged = currentBoardIds !== lastBoardIds;
+            
+            if (boardChanged) {
+                rebuildBoard(s);
+            }
+            
+            updateNonBoardUI(s);
 
-            s.board.forEach(c => {
-                const isSelected = s.selected.some(sel => sel.id === c.id);
-                const cardEl = drawCard(c, isSelected, s.activePlayer);
+            // Update all cards - either animate or just update styling
+            const allCards = b.querySelectorAll('.card');
+            
+            allCards.forEach(cardEl => {
+                const cardId = cardEl.dataset.cardId;
+                const boardCard = s.board.find(c => c.id === cardId);
+                if (!boardCard) return;
                 
-                if (newlyRevealed.includes(c.id)) {
+                const isSelected = s.selected.some(sel => sel.id === cardId);
+                const playerClass = s.activePlayer === 'p1' ? 'p1' : 'p2';
+                const isHinted = activeHintIds.includes(cardId);
+                
+                if (newlyRevealed.includes(cardId) || newlyHidden.includes(cardId)) {
+                    // First half: flip to 0
                     cardEl.classList.add('flipping');
-                    requestAnimationFrame(() => {
-                        setTimeout(() => cardEl.classList.remove('flipping'), 20);
-                    });
+                    
+                    setTimeout(() => {
+                        // Update content at midpoint
+                        const newCard = drawCard(boardCard, isSelected, s.activePlayer);
+                        cardEl.innerHTML = newCard.innerHTML;
+                        cardEl.className = newCard.className + ' flipping';
+                        cardEl.onclick = newCard.onclick;
+                        cardEl.dataset.cardId = cardId;
+                        
+                        // Second half: flip back to 1
+                        requestAnimationFrame(() => {
+                            cardEl.classList.remove('flipping');
+                            cardEl.classList.add('flipping-back');
+                            setTimeout(() => {
+                                cardEl.classList.remove('flipping-back');
+                            }, 150);
+                        });
+                    }, 75);
+                } else {
+                    // Just update styling (selection, hints) without animation
+                    cardEl.className = 'card';
+                    if (boardCard.hidden) {
+                        cardEl.classList.add('hidden');
+                    }
+                    if (isSelected) {
+                        cardEl.classList.add(`selected-${playerClass}`);
+                    }
+                    if (isHinted) {
+                        cardEl.classList.add(`hint-${playerClass}`);
+                    }
                 }
-                b.appendChild(cardEl);
             });
 
+            updateScoreAreas(s);
+            lastState = s;
+        }
+        
+        function updateScoreAreas(s) {
             ['p1', 'p2'].forEach(player => {
                 const h = document.getElementById(`${player}-history`);
                 const sets = s[`player${player.slice(1)}Sets`];
@@ -235,7 +316,87 @@
                 });
                 h.scrollTop = h.scrollHeight;
             });
-            lastState = s;
+        }
+        
+        function rebuildBoard(s) {
+            const b = document.getElementById('board');
+            b.innerHTML = '';
+            s.board.forEach(c => {
+                const isSelected = s.selected.some(sel => sel.id === c.id);
+                const cardEl = drawCard(c, isSelected, s.activePlayer);
+                cardEl.dataset.cardId = c.id;
+                b.appendChild(cardEl);
+            });
+            // Reset revealed tracking when board rebuilds
+            revealedCardIds = new Set(s.selected.map(sel => sel.id));
+        }
+        
+        function updateNonBoardUI(s) {
+            document.getElementById('deck-count').innerText = `${s.deckCount} cards left`;
+            
+            const dv = document.getElementById('deck-visual');
+            dv.innerHTML = '';
+            for(let i=0; i < s.deckCount; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'tiny-card';
+                dv.appendChild(dot);
+            }
+
+            const t = document.getElementById('turn-display');
+            t.innerText = (s.activePlayer === 'p1' ? "Player 1" : "Player 2") + "'s Turn";
+            t.className = `turn-${s.activePlayer}`;
+        }
+        
+        function animateSetCollection(cardIds, player, oldState, onComplete) {
+            const historyElement = document.getElementById(`${player}-history`);
+            const historyRect = historyElement.getBoundingClientRect();
+            const targetX = historyRect.left + historyRect.width / 2;
+            const targetY = historyRect.top + historyRect.height / 2;
+            
+            let completed = 0;
+            
+            cardIds.forEach((cardId, index) => {
+                const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
+                if (!cardEl) {
+                    completed++;
+                    if (completed === cardIds.length) onComplete();
+                    return;
+                }
+                
+                const rect = cardEl.getBoundingClientRect();
+                const clone = cardEl.cloneNode(true);
+                
+                // Position clone exactly where original card is
+                clone.style.position = 'fixed';
+                clone.style.left = rect.left + 'px';
+                clone.style.top = rect.top + 'px';
+                clone.style.width = rect.width + 'px';
+                clone.style.height = rect.height + 'px';
+                clone.style.zIndex = '1000';
+                clone.style.pointerEvents = 'none';
+                clone.classList.add('collecting');
+                
+                document.body.appendChild(clone);
+                
+                // Hide original
+                cardEl.style.opacity = '0';
+                
+                // Stagger the animations slightly
+                setTimeout(() => {
+                    clone.style.left = targetX + 'px';
+                    clone.style.top = targetY + 'px';
+                    clone.style.transform = 'scale(0.2)';
+                    clone.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        clone.remove();
+                        completed++;
+                        if (completed === cardIds.length) {
+                            onComplete();
+                        }
+                    }, 600);
+                }, index * 100);
+            });
         }
 
         function drawCard(card, isSelected, activePlayer, isHistory = false) {
