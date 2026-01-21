@@ -210,4 +210,4 @@ io.on('connection', (socket) => {
 });
 
 resetGame();
-http.listen(3000, () => console.log('Server running on port 3000'));
+http.listen(3333, () => console.log('Server running on port 3333'));
